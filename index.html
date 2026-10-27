@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weight Tracker - Pemantau Berat Badan Kelompok</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+    }
+    
+    .animate-pulse-subtle {
+      animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulseSubtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.02); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- ================= TOP NOTIFICATION / DEMO BANNER ================= -->
+  <div id="statusAlertBanner" class="hidden transition-all duration-300">
+    <div class="bg-amber-500 text-white px-4 py-2.5 text-xs sm:text-sm font-medium flex items-center justify-between shadow-sm">
+      <div class="flex items-center space-x-2 max-w-5xl mx-auto w-full">
+        <i class="fa-solid fa-triangle-exclamation text-amber-200"></i>
+        <span id="statusAlertText">Mode Demo: URL Google Apps Script belum disetel. Data disimpan secara lokal di browser.</span>
+        <button onclick="openConfigModal()" class="underline font-semibold hover:text-amber-100 ml-2">Hubungkan Sekarang</button>
+      </div>
+      <button onclick="dismissAlertBanner()" class="text-white hover:text-amber-100 p-1">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= HEADER NAVIGATION ================= -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 sm:h-20">
+        
+        <!-- Brand Title & Icon -->
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-tr from-brand-700 via-brand-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+            <i class="fa-solid fa-weight-scale text-xl sm:text-2xl"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h1 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Weight<span class="text-brand-600">Tracker</span></h1>
+              <span class="bg-brand-50 text-brand-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-brand-200 uppercase tracking-wider">Group Edition</span>
+            </div>
+            <p class="text-xs text-slate-500 hidden sm:block">Pantau perkembangan berat badan kelompok secara real-time</p>
+          </div>
+        </div>
+
+        <!-- Connection Status & Action Buttons -->
+        <div class="flex items-center space-x-2 sm:space-x-3">
+          <!-- Live Indicator Badge -->
+          <div id="connectionBadge" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="connectionBadgeText" class="hidden sm:inline">Terhubung ke Sheets</span>
+            <span class="sm:hidden">Online</span>
+          </div>
+
+          <!-- Settings Button -->
+          <button onclick="openConfigModal()" title="Pengaturan URL Google Sheets" class="p-2 sm:px-3 sm:py-2 text-slate-600 hover:text-brand-600 hover:bg-slate-100 rounded-lg text-sm font-medium border border-slate-200 transition-colors flex items-center space-x-1.5">
+            <i class="fa-solid fa-gear"></i>
+            <span class="hidden md:inline">Konfigurasi</span>
+          </button>
+
+          <!-- Refresh Button -->
+          <button id="btnTopRefresh" onclick="syncData(true)" title="Sinkronkan data terbaru" class="bg-brand-600 hover:bg-brand-700 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold shadow-sm shadow-brand-500/30 transition-all flex items-center space-x-2 active:scale-95">
+            <i id="btnTopRefreshIcon" class="fa-solid fa-arrows-rotate"></i>
+            <span class="hidden sm:inline">Refresh Data</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTENT CONTAINER ================= -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+
+    <!-- 1. SUMMARY STATS OVERVIEW CARDS -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+      <!-- Total Anggota -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-brand-200 transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-xs sm:text-sm font-medium text-slate-500">Total Anggota</span>
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-brand-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-users"></i>
+          </div>
+        </div>
+        <div class="mt-2 sm:mt-3 flex items-baseline">
+          <span id="statTotalMembers" class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">0</span>
+          <span class="ml-1.5 text-xs text-slate-400 font-medium">orang</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1 truncate">Anggota aktif terdata</p>
+      </div>
+
+      <!-- Total Catatan -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-brand-200 transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-xs sm:text-sm font-medium text-slate-500">Total Catatan</span>
+          <div class="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-clipboard-check"></i>
+          </div>
+        </div>
+        <div class="mt-2 sm:mt-3 flex items-baseline">
+          <span id="statTotalEntries" class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">0</span>
+          <span class="ml-1.5 text-xs text-slate-400 font-medium">riwayat</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1 truncate">Tersimpan di Google Sheets</p>
+      </div>
+
+      <!-- Rata-rata Berat Terkini -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-brand-200 transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-xs sm:text-sm font-medium text-slate-500">Rata-rata Terkini</span>
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-chart-pie"></i>
+          </div>
+        </div>
+        <div class="mt-2 sm:mt-3 flex items-baseline">
+          <span id="statAverageWeight" class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">0.0</span>
+          <span class="ml-1.5 text-xs text-slate-400 font-medium">kg</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1 truncate">Rata-rata catatan terakhir anggota</p>
+      </div>
+
+      <!-- Input Terakhir -->
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-brand-200 transition-all">
+        <div class="flex items-center justify-between">
+          <span class="text-xs sm:text-sm font-medium text-slate-500">Update Terakhir</span>
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </div>
+        </div>
+        <div class="mt-2 sm:mt-3">
+          <span id="statLastUpdate" class="text-sm sm:text-base font-bold text-slate-800 truncate block">-</span>
+          <span id="statLastPerson" class="text-[11px] text-brand-600 font-semibold block truncate">Belum ada input</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1 truncate">Sinkronisasi otomatis</p>
+      </div>
+    </section>
+
+    <!-- 2. FORM INPUT & QUICK ACTIONS (RESPONSIVE GRID) -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div class="bg-gradient-to-r from-brand-600 via-brand-700 to-sky-700 px-5 sm:px-6 py-4 text-white flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white text-sm">
+            <i class="fa-solid fa-square-plus"></i>
+          </div>
+          <div>
+            <h2 class="text-base sm:text-lg font-bold">Catat Berat Badan Baru</h2>
+            <p class="text-xs text-brand-100">Data otomatis tersimpan ke baris Google Sheets secara real-time</p>
+          </div>
+        </div>
+        <span class="hidden sm:inline-block text-xs bg-white/15 px-3 py-1 rounded-full text-brand-50 border border-white/20">
+          <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Auto-Sync
+        </span>
+      </div>
+
+      <div class="p-5 sm:p-6">
+        <form id="weightForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            
+            <!-- Field 1: Nama Anggota -->
+            <div class="space-y-1.5">
+              <label for="inputNama" class="block text-xs sm:text-sm font-semibold text-slate-700">
+                <i class="fa-solid fa-user text-brand-500 mr-1.5"></i>Nama Anggota
+              </label>
+              <div class="relative">
+                <input 
+                  type="text" 
+                  id="inputNama" 
+                  list="memberSuggestions"
+                  placeholder="Ketik atau pilih nama..." 
+                  required
+                  class="w-full px-3.5 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 font-medium"
+                >
+                <datalist id="memberSuggestions">
+                  <!-- Diisi otomatis dari riwayat nama -->
+                </datalist>
+                <div class="absolute right-3 top-3 text-slate-400 pointer-events-none text-xs">
+                  <i class="fa-solid fa-chevron-down"></i>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-400">Pilih dari list atau ketik nama baru</p>
+            </div>
+
+            <!-- Field 2: Tanggal -->
+            <div class="space-y-1.5">
+              <label for="inputTanggal" class="block text-xs sm:text-sm font-semibold text-slate-700">
+                <i class="fa-solid fa-calendar-day text-brand-500 mr-1.5"></i>Tanggal Penimbangan
+              </label>
+              <div class="relative">
+                <input 
+                  type="date" 
+                  id="inputTanggal" 
+                  required
+                  class="w-full px-3.5 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all text-slate-800 font-medium"
+                >
+              </div>
+              <p class="text-[11px] text-slate-400">Default otomatis hari ini</p>
+            </div>
+
+            <!-- Field 3: Berat Badan -->
+            <div class="space-y-1.5">
+              <label for="inputBerat" class="block text-xs sm:text-sm font-semibold text-slate-700">
+                <i class="fa-solid fa-weight-scale text-brand-500 mr-1.5"></i>Berat Badan (kg)
+              </label>
+              <div class="relative">
+                <input 
+                  type="number" 
+                  id="inputBerat" 
+                  step="0.05" 
+                  min="15" 
+                  max="300"
+                  placeholder="Misal: 68.5" 
+                  required
+                  class="w-full px-3.5 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 font-bold"
+                >
+                <span class="absolute right-3.5 top-2.5 sm:top-3 text-xs font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-md">
+                  KG
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400">Gunakan titik (.) untuk desimal</p>
+            </div>
+
+          </div>
+
+          <!-- Quick Name Chips (Pill Buttons) -->
+          <div id="quickNameSection" class="hidden pt-1">
+            <span class="text-xs font-semibold text-slate-500 mr-2">Pilih Cepat:</span>
+            <div id="quickNameList" class="inline-flex flex-wrap gap-1.5 mt-1">
+              <!-- Dynamically populated chips -->
+            </div>
+          </div>
+
+          <!-- Submit Button & Action Bar -->
+          <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
+            <div class="text-xs text-slate-500 flex items-center space-x-1.5">
+              <i class="fa-solid fa-shield-halved text-brand-500"></i>
+              <span>Penyimpanan aman via Google Apps Script Webhook API</span>
+            </div>
+
+            <button 
+              type="submit" 
+              id="btnSubmit" 
+              class="w-full sm:w-auto min-w-[200px] bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-brand-500/25 transition-all flex items-center justify-center space-x-2.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <i id="btnSubmitIcon" class="fa-solid fa-floppy-disk"></i>
+              <span id="btnSubmitText">Simpan Data</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 3. GRAFIK MONITORING TREN BERAT BADAN (CHART.JS) -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-5">
+      
+      <!-- Chart Header & Filters Bar -->
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-slate-100">
+        <div>
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-sm">
+              <i class="fa-solid fa-chart-line"></i>
+            </div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">Grafik Monitoring Tren Berat Badan</h2>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Visualisasi perkembangan berat badan seiring berjalannya waktu</p>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full lg:w-auto">
+          
+          <!-- Filter 1: Dropdown Nama -->
+          <div class="relative">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Filter Anggota</label>
+            <div class="relative">
+              <select 
+                id="filterMemberSelect" 
+                onchange="applyChartFilters()" 
+                class="w-full appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 pr-8 text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors"
+              >
+                <option value="ALL">👥 Semua Nama (Bandingkan Semua)</option>
+                <!-- Opsi nama anggota akan diisi secara dinamis -->
+              </select>
+              <div class="absolute right-3 top-2.5 text-slate-400 pointer-events-none text-xs">
+                <i class="fa-solid fa-chevron-down"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter 2: Tanggal Mulai -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tanggal Mulai</label>
+            <input 
+              type="date" 
+              id="filterStartDate" 
+              onchange="applyChartFilters()" 
+              class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors"
+            >
+          </div>
+
+          <!-- Filter 3: Tanggal Selesai -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tanggal Selesai</label>
+            <input 
+              type="date" 
+              id="filterEndDate" 
+              onchange="applyChartFilters()" 
+              class="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors"
+            >
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Quick Preset Filter Buttons -->
+      <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-center space-x-1.5 flex-wrap">
+          <span class="text-slate-400 font-semibold text-[11px] mr-1">Preset Rentang:</span>
+          <button onclick="setFilterPreset('7D')" class="preset-btn px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 font-medium transition-all text-slate-600">7 Hari</button>
+          <button onclick="setFilterPreset('30D')" class="preset-btn active px-2.5 py-1 rounded-lg border border-brand-500 bg-brand-50 text-brand-600 font-semibold transition-all">30 Hari</button>
+          <button onclick="setFilterPreset('THIS_MONTH')" class="preset-btn px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 font-medium transition-all text-slate-600">Bulan Ini</button>
+          <button onclick="setFilterPreset('ALL_TIME')" class="preset-btn px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 font-medium transition-all text-slate-600">Semua Waktu</button>
+        </div>
+
+        <div id="chartDataCountNotice" class="text-slate-500 text-[11px] font-medium">
+          Menampilkan <span id="displayedPointCount" class="font-bold text-brand-600">0</span> titik data
+        </div>
+      </div>
+
+      <!-- Chart Canvas Wrapper -->
+      <div class="relative w-full h-[320px] sm:h-[400px] bg-slate-50/50 rounded-xl p-2 border border-slate-100">
+        <canvas id="weightTrendChart"></canvas>
+        
+        <!-- Empty State in Chart -->
+        <div id="chartEmptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-white/90 rounded-xl p-6 text-center">
+          <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xl mb-3">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <h4 class="text-sm font-bold text-slate-700">Tidak ada data untuk rentang ini</h4>
+          <p class="text-xs text-slate-500 mt-1 max-w-sm">Coba ubah filter rentang tanggal atau pilih nama anggota lain untuk melihat grafik.</p>
+        </div>
+      </div>
+
+      <!-- Chart Footer Legend Notice -->
+      <div class="text-[11px] text-slate-400 flex items-center justify-between">
+        <span><i class="fa-solid fa-circle-info mr-1 text-brand-500"></i> Tip: Klik nama anggota di legenda atas diagram untuk menyembunyikan/menampilkan garisnya.</span>
+      </div>
+
+    </section>
+
+    <!-- 4. TABEL RIWAYAT DATA & SEARCH -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-0">
+      
+      <!-- Table Header & Controls -->
+      <div class="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+              <i class="fa-solid fa-table-list"></i>
+            </div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">Riwayat Catatan Berat Badan</h2>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Daftar rekapan berat badan seluruh anggota terurut tanggal terbaru</p>
+        </div>
+
+        <!-- Table Quick Actions -->
+        <div class="flex items-center space-x-2 w-full sm:w-auto">
+          <!-- Search box -->
+          <div class="relative flex-grow sm:w-60">
+            <input 
+              type="text" 
+              id="tableSearchInput" 
+              oninput="renderHistoryTable()" 
+              placeholder="Cari nama atau tanggal..." 
+              class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white text-slate-700 font-medium placeholder:text-slate-400"
+            >
+            <div class="absolute left-3 top-2.5 text-slate-400 text-xs pointer-events-none">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </div>
+          </div>
+
+          <!-- Refresh Data Table Button -->
+          <button 
+            onclick="syncData(true)" 
+            title="Muat ulang dari Google Sheets"
+            class="px-3.5 py-2 bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-600 rounded-xl text-xs sm:text-sm font-semibold border border-slate-200 hover:border-brand-200 transition-colors flex items-center space-x-1.5 whitespace-nowrap active:scale-95"
+          >
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span class="hidden md:inline">Refresh</span>
+          </button>
+
+          <!-- Export CSV Button -->
+          <button 
+            onclick="exportToCSV()" 
+            title="Download file CSV"
+            class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold border border-slate-200 transition-colors flex items-center space-x-1.5 whitespace-nowrap active:scale-95"
+          >
+            <i class="fa-solid fa-file-csv text-emerald-600"></i>
+            <span class="hidden md:inline">Export</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Responsive Table View -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs sm:text-sm">
+          <thead>
+            <tr class="bg-slate-50/80 text-slate-500 font-bold border-b border-slate-200">
+              <th class="py-3 px-4 sm:px-6 w-16">No</th>
+              <th class="py-3 px-4 sm:px-6 cursor-pointer hover:text-brand-600" onclick="toggleSort('tanggal')">
+                Tanggal <i id="sortDateIcon" class="fa-solid fa-sort ml-1 text-slate-400"></i>
+              </th>
+              <th class="py-3 px-4 sm:px-6 cursor-pointer hover:text-brand-600" onclick="toggleSort('nama')">
+                Nama Anggota <i id="sortNameIcon" class="fa-solid fa-sort ml-1 text-slate-400"></i>
+              </th>
+              <th class="py-3 px-4 sm:px-6 text-right cursor-pointer hover:text-brand-600" onclick="toggleSort('berat')">
+                Berat Badan <i id="sortWeightIcon" class="fa-solid fa-sort ml-1 text-slate-400"></i>
+              </th>
+              <th class="py-3 px-4 sm:px-6 text-center">Perubahan</th>
+              <th class="py-3 px-4 sm:px-6 text-center w-28">Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="divide-y divide-slate-100 text-slate-700 font-medium">
+            <!-- Will be populated by JavaScript -->
+            <tr>
+              <td colspan="6" class="text-center py-8 text-slate-400">
+                <i class="fa-solid fa-circle-notch fa-spin text-xl text-brand-500 mb-2 block"></i>
+                Memuat data riwayat...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Table Footer Pagination / Status -->
+      <div class="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
+        <div id="tableRecordSummary">
+          Menampilkan <span id="tableShowingCount" class="font-bold text-slate-800">0</span> dari <span id="tableTotalCount" class="font-bold text-slate-800">0</span> rekaman
+        </div>
+        <div class="flex items-center space-x-1.5" id="tablePagination">
+          <!-- Pagination buttons rendered here if needed -->
+          <span class="text-slate-400">Sinkronisasi terakhir: <span id="lastSyncedTime" class="font-semibold text-slate-600">-</span></span>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
+      <div class="flex items-center space-x-2">
+        <div class="w-6 h-6 rounded-md bg-brand-600 text-white flex items-center justify-center text-[10px] font-bold">WT</div>
+        <span class="font-semibold text-slate-700">Weight Tracker Group Edition</span>
+        <span>&bull; Real-time Google Sheets Database</span>
+      </div>
+      <div>
+        <span>Aman, Cepat & Terbuka untuk Kolaborasi Kelompok</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= MODAL: KONFIGURASI GOOGLE APPS SCRIPT URL ================= -->
+  <div id="configModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-100 transform transition-all space-y-5">
+      
+      <div class="flex items-start justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-sliders"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Konfigurasi Google Sheets</h3>
+            <p class="text-xs text-slate-500">Hubungkan web ini langsung ke Apps Script Anda</p>
+          </div>
+        </div>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label for="modalScriptUrl" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Google Apps Script Web App URL
+          </label>
+          <input 
+            type="url" 
+            id="modalScriptUrl" 
+            placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
+          >
+          <p class="text-[11px] text-slate-500 mt-1.5">
+            URL didapat dari menu <b>Deploy > New deployment > Web app</b> dengan akses <b>Anyone</b> di Google Sheets.
+          </p>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 space-y-1.5">
+          <div class="font-bold flex items-center space-x-1.5 text-blue-700">
+            <i class="fa-solid fa-circle-question"></i>
+            <span>Belum punya URL Apps Script?</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-blue-800">
+            Buka file <code class="bg-blue-100 px-1 py-0.5 rounded font-mono font-bold">Code.gs</code> yang disertakan, buka <a href="https://sheets.new" target="_blank" class="underline font-bold text-blue-900">Google Sheets</a> baru, klik <b>Ekstensi > Apps Script</b>, tempel kodenya dan deploy sebagai Web App!
+          </p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex items-center justify-end space-x-2.5">
+        <button onclick="closeConfigModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50">
+          Tutup
+        </button>
+        <button onclick="saveConfigUrl()" class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold shadow-sm shadow-brand-500/30">
+          Simpan & Sinkronkan
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= TOAST NOTIFICATION CONTAINER ================= -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2.5 pointer-events-none max-w-sm w-full px-4"></div>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    /**
+     * ====================================================================
+     * KONFIGURASI UTAMA
+     * ====================================================================
+     * Silakan tempelkan Web App URL Google Apps Script Anda di sini,
+     * ATAU gunakan tombol "Konfigurasi" di bagian atas halaman web.
+     */
+    let GOOGLE_SCRIPT_URL = ""; // Contoh: "https://script.google.com/macros/s/AKfycbx.../exec"
+
+    // Key untuk menyimpan URL di browser LocalStorage agar mudah saat deployment
+    const STORAGE_KEY_URL = "WEIGHT_TRACKER_GOOGLE_URL";
+    const STORAGE_KEY_LOCAL_DATA = "WEIGHT_TRACKER_LOCAL_CACHE";
+
+    // Global State
+    let allRecords = [];
+    let trendChart = null;
+    let currentSortColumn = 'tanggal';
+    let currentSortAsc = false; // default terbaru di atas
+
+    // Palet warna cerah dan konsisten untuk tiap anggota
+    const MEMBER_COLORS = [
+      { border: '#2563eb', bg: 'rgba(37, 99, 235, 0.15)' },  // Biru Utama
+      { border: '#0284c7', bg: 'rgba(2, 132, 199, 0.15)' },  // Sky
+      { border: '#4f46e5', bg: 'rgba(79, 70, 229, 0.15)' },  // Indigo
+      { border: '#059669', bg: 'rgba(5, 150, 105, 0.15)' },  // Emerald
+      { border: '#d97706', bg: 'rgba(217, 119, 6, 0.15)' },  // Amber
+      { border: '#dc2626', bg: 'rgba(220, 38, 38, 0.15)' },  // Merah
+      { border: '#7c3aed', bg: 'rgba(124, 58, 237, 0.15)' }, // Ungu
+      { border: '#db2777', bg: 'rgba(219, 39, 119, 0.15)' }, // Pink
+      { border: '#0d9488', bg: 'rgba(13, 148, 136, 0.15)' }, // Teal
+      { border: '#ea580c', bg: 'rgba(234, 88, 12, 0.15)' }   // Oranye
+    ];
+
+    /**
+     * Data Demo Bawaan untuk pengujian awal sebelum Google Apps Script dipasang
+     */
+    const DEMO_RECORDS = [
+      { id: "DEMO-1",  tanggal: getRelativeDateStr(-28), nama: "Budi Santoso", berat: 72.5, waktuInput: "2026-09-21 07:15:00" },
+      { id: "DEMO-2",  tanggal: getRelativeDateStr(-28), nama: "Siti Rahma",   berat: 58.2, waktuInput: "2026-09-21 07:30:00" },
+      { id: "DEMO-3",  tanggal: getRelativeDateStr(-28), nama: "Andi Wijaya",  berat: 80.0, waktuInput: "2026-09-21 08:00:00" },
+      { id: "DEMO-4",  tanggal: getRelativeDateStr(-21), nama: "Budi Santoso", berat: 71.8, waktuInput: "2026-09-28 07:10:00" },
+      { id: "DEMO-5",  tanggal: getRelativeDateStr(-21), nama: "Siti Rahma",   berat: 57.9, waktuInput: "2026-09-28 07:25:00" },
+      { id: "DEMO-6",  tanggal: getRelativeDateStr(-21), nama: "Andi Wijaya",  berat: 79.2, waktuInput: "2026-09-28 08:05:00" },
+      { id: "DEMO-7",  tanggal: getRelativeDateStr(-14), nama: "Budi Santoso", berat: 71.0, waktuInput: "2026-10-05 07:20:00" },
+      { id: "DEMO-8",  tanggal: getRelativeDateStr(-14), nama: "Siti Rahma",   berat: 57.4, waktuInput: "2026-10-05 07:30:00" },
+      { id: "DEMO-9",  tanggal: getRelativeDateStr(-14), nama: "Andi Wijaya",  berat: 78.5, waktuInput: "2026-10-05 08:00:00" },
+      { id: "DEMO-10", tanggal: getRelativeDateStr(-7),  nama: "Budi Santoso", berat: 70.3, waktuInput: "2026-10-12 07:15:00" },
+      { id: "DEMO-11", tanggal: getRelativeDateStr(-7),  nama: "Siti Rahma",   berat: 56.8, waktuInput: "2026-10-12 07:35:00" },
+      { id: "DEMO-12", tanggal: getRelativeDateStr(-7),  nama: "Andi Wijaya",  berat: 77.9, waktuInput: "2026-10-12 08:10:00" },
+      { id: "DEMO-13", tanggal: getRelativeDateStr(-1),  nama: "Budi Santoso", berat: 69.8, waktuInput: "2026-10-18 07:05:00" },
+      { id: "DEMO-14", tanggal: getRelativeDateStr(0),   nama: "Siti Rahma",   berat: 56.4, waktuInput: "2026-10-19 07:12:00" },
+      { id: "DEMO-15", tanggal: getRelativeDateStr(0),   nama: "Andi Wijaya",  berat: 77.2, waktuInput: "2026-10-19 07:45:00" }
+    ];
+
+    /**
+     * Inisialisasi Aplikasi Saat Halaman Dibuka
+     */
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Ambil URL Google Apps Script yang tersimpan di LocalStorage jika ada
+      const savedUrl = localStorage.getItem(STORAGE_KEY_URL);
+      if (savedUrl && savedUrl.trim() !== "") {
+        GOOGLE_SCRIPT_URL = savedUrl.trim();
+      }
+
+      // 2. Set default tanggal input form ke hari ini
+      const todayStr = getTodayDateStr();
+      document.getElementById("inputTanggal").value = todayStr;
+
+      // 3. Set default filter tanggal ke rentang 1 bulan terakhir (30 hari yang lalu s/d hari ini)
+      const oneMonthAgoStr = getRelativeDateStr(-30);
+      document.getElementById("filterStartDate").value = oneMonthAgoStr;
+      document.getElementById("filterEndDate").value = todayStr;
+
+      // 4. Inisialisasi Chart.js
+      initTrendChart();
+
+      // 5. Muat data (baik dari Google Sheets maupun demo lokal)
+      syncData(false);
+    });
+
+    /**
+     * Mengambil dan menyinkronkan data dari Google Apps Script (GET)
+     */
+    async function syncData(isUserTriggered = false) {
+      updateRefreshButtonState(true);
+
+      const activeUrl = getActiveScriptUrl();
+
+      // Jika belum ada URL disetel, gunakan data Demo / LocalStorage
+      if (!activeUrl) {
+        showDemoModeNotice(true);
+        loadLocalOrDemoData();
+        updateRefreshButtonState(false);
+        if (isUserTriggered) {
+          showToast("Data demo dimuat ulang. Hubungkan URL Google Apps Script untuk sinkronisasi cloud.", "info");
+        }
+        return;
+      }
+
+      // Update badge status
+      setConnectionStatus("loading", "Menyinkronkan...");
+
+      try {
+        // Panggil Google Apps Script via GET
+        const response = await fetch(activeUrl, {
+          method: "GET",
+          redirect: "follow",
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.status === "success" && Array.isArray(result.data)) {
+          allRecords = result.data;
+          
+          // Simpan snapshot ke local storage sebagai backup offline
+          localStorage.setItem(STORAGE_KEY_LOCAL_DATA, JSON.stringify(allRecords));
+
+          showDemoModeNotice(false);
+          setConnectionStatus("online", "Terhubung ke Sheets");
+          
+          processAndRenderAll();
+
+          const now = new Date();
+          document.getElementById("lastSyncedTime").textContent = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+          if (isUserTriggered) {
+            showToast("Berhasil menyinkronkan seluruh riwayat dari Google Sheets!", "success");
+          }
+        } else {
+          throw new Error(result.message || "Gagal memproses data dari Google Sheets");
+        }
+      } catch (error) {
+        console.error("Gagal sinkronisasi dengan Google Sheets:", error);
+        setConnectionStatus("error", "Koneksi Bermasalah");
+        
+        // Coba muat fallback dari cache lokal atau demo
+        loadLocalOrDemoData();
+        
+        if (isUserTriggered) {
+          showToast("Gagal mengambil data dari Google Sheets: " + error.message, "error");
+        }
+      } finally {
+        updateRefreshButtonState(false);
+      }
+    }
+
+    /**
+     * Menyimpan Input Data Baru ke Google Sheets via POST
+     */
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+
+      const namaInput = document.getElementById("inputNama");
+      const tanggalInput = document.getElementById("inputTanggal");
+      const beratInput = document.getElementById("inputBerat");
+
+      const nama = namaInput.value.trim();
+      const tanggal = tanggalInput.value.trim();
+      const berat = parseFloat(beratInput.value);
+
+      if (!nama || !tanggal || isNaN(berat) || berat <= 0) {
+        showToast("Mohon lengkapi semua kolom dengan benar!", "warning");
+        return;
+      }
+
+      // Tampilkan indikator loading pada tombol simpan
+      setSubmitButtonLoading(true);
+
+      const activeUrl = getActiveScriptUrl();
+      const payload = { nama, tanggal, berat };
+
+      if (!activeUrl) {
+        // Mode Demo: simpan ke memori lokal
+        setTimeout(() => {
+          const newEntry = {
+            id: "LOCAL-" + Date.now(),
+            nama,
+            tanggal,
+            berat,
+            waktuInput: new Date().toISOString().replace('T', ' ').slice(0, 19)
+          };
+          allRecords.push(newEntry);
+          localStorage.setItem(STORAGE_KEY_LOCAL_DATA, JSON.stringify(allRecords));
+
+          processAndRenderAll();
+          setSubmitButtonLoading(false);
+          beratInput.value = ""; // Reset input berat
+          showToast(`[Demo] Berat badan ${nama} (${berat} kg) berhasil disimpan di browser!`, "success");
+        }, 600);
+        return;
+      }
+
+      try {
+        /**
+         * Kirim data via fetch POST.
+         * Menggunakan Content-Type: text/plain agar browser TIDAK memicu CORS preflight OPTIONS request
+         * yang tidak didukung oleh endpoint Google Apps Script Web App.
+         */
+        const response = await fetch(activeUrl, {
+          method: "POST",
+          redirect: "follow",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (result.status === "success") {
+          showToast(`Berhasil menyimpan data ${nama} (${berat} kg) ke Google Sheets!`, "success");
+          
+          // Kosongkan input berat dan fokuskan kembali
+          beratInput.value = "";
+          
+          // Sinkronkan ulang data dari sheet
+          await syncData(false);
+        } else {
+          throw new Error(result.message || "Gagal menyimpan ke Google Sheets");
+        }
+      } catch (error) {
+        console.error("Gagal simpan ke Google Sheets:", error);
+        
+        // Fallback optimis: Simpan secara lokal dan beritahu pengguna
+        const localEntry = {
+          id: "OFFLINE-" + Date.now(),
+          nama,
+          tanggal,
+          berat,
+          waktuInput: new Date().toISOString().replace('T', ' ').slice(0, 19)
+        };
+        allRecords.push(localEntry);
+        processAndRenderAll();
+
+        showToast("Gagal terhubung ke Google Sheets: Data disimpan sementara di browser.", "warning");
+      } finally {
+        setSubmitButtonLoading(false);
+      }
+    }
+
+    /**
+     * Memproses data dan merender seluruh komponen:
+     * - Kartu Ringkasan (Stats)
+     * - Pilihan Anggota di Dropdown & Chips
+     * - Grafik Chart.js
+     * - Tabel Riwayat Data
+     */
+    function processAndRenderAll() {
+      updateSummaryStats();
+      updateMemberOptions();
+      applyChartFilters();
+      renderHistoryTable();
+    }
+
+    /**
+     * Update 4 Kartu Statistik Ringkasan
+     */
+    function updateSummaryStats() {
+      const uniqueMembers = getUniqueMemberNames();
+      document.getElementById("statTotalMembers").textContent = uniqueMembers.length;
+      document.getElementById("statTotalEntries").textContent = allRecords.length;
+
+      if (allRecords.length === 0) {
+        document.getElementById("statAverageWeight").textContent = "0.0";
+        document.getElementById("statLastUpdate").textContent = "-";
+        document.getElementById("statLastPerson").textContent = "Belum ada catatan";
+        return;
+      }
+
+      // Hitung berat rata-rata terkini (berdasarkan entri terakhir dari masing-masing anggota)
+      let totalLatestWeight = 0;
+      let memberCountWithLatest = 0;
+
+      uniqueMembers.forEach(memberName => {
+        const memberRecords = allRecords
+          .filter(r => r.nama.toLowerCase() === memberName.toLowerCase())
+          .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+        
+        if (memberRecords.length > 0) {
+          totalLatestWeight += memberRecords[0].berat;
+          memberCountWithLatest++;
+        }
+      });
+
+      const avg = memberCountWithLatest > 0 ? (totalLatestWeight / memberCountWithLatest).toFixed(1) : "0.0";
+      document.getElementById("statAverageWeight").textContent = avg;
+
+      // Cari catatan terbaru secara keseluruhan
+      const sortedByDate = [...allRecords].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+      const latestEntry = sortedByDate[0];
+
+      if (latestEntry) {
+        document.getElementById("statLastUpdate").textContent = formatDateIndo(latestEntry.tanggal);
+        document.getElementById("statLastPerson").textContent = `${latestEntry.nama} (${latestEntry.berat} kg)`;
+      }
+    }
+
+    /**
+     * Memperbarui daftar opsi nama di dropdown filter & suggestions
+     */
+    function updateMemberOptions() {
+      const names = getUniqueMemberNames();
+      
+      // Update datalist di form input
+      const datalist = document.getElementById("memberSuggestions");
+      datalist.innerHTML = "";
+      names.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        datalist.appendChild(opt);
+      });
+
+      // Update dropdown filter di grafik
+      const filterSelect = document.getElementById("filterMemberSelect");
+      const currentVal = filterSelect.value;
+      
+      // Pertahankan opsi default "ALL"
+      filterSelect.innerHTML = `<option value="ALL">👥 Semua Nama (Bandingkan Semua)</option>`;
+      
+      names.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = `👤 ${name}`;
+        filterSelect.appendChild(opt);
+      });
+
+      // Kembalikan seleksi jika masih valid
+      if (names.includes(currentVal) || currentVal === "ALL") {
+        filterSelect.value = currentVal;
+      }
+
+      // Update Chips Pilih Cepat
+      const quickSection = document.getElementById("quickNameSection");
+      const quickList = document.getElementById("quickNameList");
+      quickList.innerHTML = "";
+
+      if (names.length > 0) {
+        quickSection.classList.remove("hidden");
+        names.slice(0, 6).forEach(name => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "px-2.5 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200 transition-colors";
+          chip.textContent = name;
+          chip.onclick = () => {
+            document.getElementById("inputNama").value = name;
+            document.getElementById("inputBerat").focus();
+          };
+          quickList.appendChild(chip);
+        });
+      } else {
+        quickSection.classList.add("hidden");
+      }
+    }
+
+    /**
+     * Inisialisasi Objek Grafik Chart.js
+     */
+    function initTrendChart() {
+      const ctx = document.getElementById("weightTrendChart").getContext("2d");
+
+      trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: []
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                boxWidth: 8,
+                padding: 16,
+                font: {
+                  family: '"Plus Jakarta Sans", sans-serif',
+                  size: 12,
+                  weight: '600'
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+              titleFont: {
+                family: '"Plus Jakarta Sans", sans-serif',
+                size: 13,
+                weight: 'bold'
+              },
+              bodyFont: {
+                family: '"Plus Jakarta Sans", sans-serif',
+                size: 12
+              },
+              padding: 12,
+              cornerRadius: 10,
+              boxPadding: 6,
+              callbacks: {
+                label: function(context) {
+                  return ` ${context.dataset.label}: ${context.parsed.y.toFixed(1)} kg`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                color: 'rgba(226, 232, 240, 0.6)',
+                drawBorder: false
+              },
+              ticks: {
+                font: {
+                  family: '"Plus Jakarta Sans", sans-serif',
+                  size: 11
+                },
+                color: '#64748b'
+              }
+            },
+            y: {
+              grid: {
+                color: 'rgba(226, 232, 240, 0.6)',
+                drawBorder: false
+              },
+              ticks: {
+                font: {
+                  family: '"Plus Jakarta Sans", sans-serif',
+                  size: 11
+                },
+                color: '#64748b',
+                callback: function(value) {
+                  return value + ' kg';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    /**
+     * Menerapkan Filter pada Grafik (Filter Nama & Rentang Tanggal)
+     */
+    function applyChartFilters() {
+      if (!trendChart) return;
+
+      const selectedMember = document.getElementById("filterMemberSelect").value;
+      const startDateStr = document.getElementById("filterStartDate").value;
+      const endDateStr = document.getElementById("filterEndDate").value;
+
+      const startDate = startDateStr ? new Date(startDateStr + "T00:00:00") : null;
+      const endDate = endDateStr ? new Date(endDateStr + "T23:59:59") : null;
+
+      // Filter rekaman sesuai tanggal
+      let filteredRecords = allRecords.filter(r => {
+        if (!r.tanggal) return false;
+        const rDate = new Date(r.tanggal + "T00:00:00");
+        if (startDate && rDate < startDate) return false;
+        if (endDate && rDate > endDate) return false;
+        return true;
+      });
+
+      // Filter nama jika bukan "ALL"
+      if (selectedMember !== "ALL") {
+        filteredRecords = filteredRecords.filter(r => r.nama.toLowerCase() === selectedMember.toLowerCase());
+      }
+
+      // Ambil daftar tanggal unik yang ada dan urutkan kronologis (terlama ke terbaru untuk grafik garis)
+      const uniqueDates = [...new Set(filteredRecords.map(r => r.tanggal))].sort();
+
+      const emptyStateEl = document.getElementById("chartEmptyState");
+      const countNoticeEl = document.getElementById("displayedPointCount");
+
+      if (filteredRecords.length === 0 || uniqueDates.length === 0) {
+        emptyStateEl.classList.remove("hidden");
+        trendChart.data.labels = [];
+        trendChart.data.datasets = [];
+        trendChart.update();
+        countNoticeEl.textContent = "0";
+        return;
+      }
+
+      emptyStateEl.classList.add("hidden");
+      countNoticeEl.textContent = filteredRecords.length;
+
+      // Format label sumbu X menjadi format yang nyaman dibaca (misal "19 Okt")
+      const formattedDateLabels = uniqueDates.map(d => formatDateShort(d));
+
+      // Siapkan datasets berdasarkan nama anggota
+      const targetMembers = selectedMember === "ALL" 
+        ? [...new Set(filteredRecords.map(r => r.nama))]
+        : [selectedMember];
+
+      const datasets = [];
+
+      targetMembers.forEach((member, index) => {
+        const color = MEMBER_COLORS[index % MEMBER_COLORS.length];
+        
+        // Buat mapping tanggal -> berat untuk anggota ini
+        const memberEntries = filteredRecords.filter(r => r.nama.toLowerCase() === member.toLowerCase());
+        const dateWeightMap = {};
+        
+        memberEntries.forEach(entry => {
+          // Jika ada lebih dari satu entri pada tanggal yang sama, gunakan entri terakhir
+          dateWeightMap[entry.tanggal] = entry.berat;
+        });
+
+        // Petakan ke array data sesuai urutan tanggal unik
+        const dataPoints = uniqueDates.map(d => dateWeightMap[d] !== undefined ? dateWeightMap[d] : null);
+
+        datasets.push({
+          label: member,
+          data: dataPoints,
+          borderColor: color.border,
+          backgroundColor: color.bg,
+          borderWidth: 2.5,
+          tension: 0.35, // Garis melengkung halus
+          pointRadius: 4.5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#ffffff',
+          pointBorderColor: color.border,
+          pointBorderWidth: 2.5,
+          spanGaps: true, // Hubungkan titik jika ada hari kosong
+          fill: selectedMember !== "ALL" // Isian gradien lembut jika memilih 1 anggota
+        });
+      });
+
+      trendChart.data.labels = formattedDateLabels;
+      trendChart.data.datasets = datasets;
+      
+      // Auto scale sumbu Y dengan padding yang pas
+      const allWeights = filteredRecords.map(r => r.berat);
+      const minW = Math.floor(Math.min(...allWeights) - 1.5);
+      const maxW = Math.ceil(Math.max(...allWeights) + 1.5);
+      
+      trendChart.options.scales.y.min = Math.max(0, minW);
+      trendChart.options.scales.y.max = maxW;
+
+      trendChart.update();
+    }
+
+    /**
+     * Merender Tabel Riwayat Data
+     */
+    function renderHistoryTable() {
+      const tbody = document.getElementById("historyTableBody");
+      const searchQuery = (document.getElementById("tableSearchInput").value || "").toLowerCase().trim();
+
+      // Filter berdasarkan pencarian
+      let displayRecords = allRecords.filter(r => {
+        if (!searchQuery) return true;
+        const matchName = r.nama && r.nama.toLowerCase().includes(searchQuery);
+        const matchDate = r.tanggal && r.tanggal.includes(searchQuery);
+        const matchWeight = r.berat && String(r.berat).includes(searchQuery);
+        return matchName || matchDate || matchWeight;
+      });
+
+      // Pengurutan (Sorting)
+      displayRecords.sort((a, b) => {
+        let valA = a[currentSortColumn];
+        let valB = b[currentSortColumn];
+
+        if (currentSortColumn === 'berat') {
+          return currentSortAsc ? (valA - valB) : (valB - valA);
+        } else if (currentSortColumn === 'tanggal') {
+          return currentSortAsc 
+            ? new Date(valA) - new Date(valB) 
+            : new Date(valB) - new Date(valA);
+        } else {
+          return currentSortAsc 
+            ? String(valA).localeCompare(String(valB)) 
+            : String(valB).localeCompare(String(valA));
+        }
+      });
+
+      // Update counters
+      document.getElementById("tableShowingCount").textContent = displayRecords.length;
+      document.getElementById("tableTotalCount").textContent = allRecords.length;
+
+      if (displayRecords.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center py-10 text-slate-400">
+              <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-base">
+                <i class="fa-solid fa-inbox"></i>
+              </div>
+              <p class="font-medium text-slate-500">Tidak ada data riwayat yang cocok.</p>
+              <p class="text-xs text-slate-400 mt-0.5">Coba ubah kata kunci pencarian atau tambah data baru di atas.</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      // Hitung selisih perubahan dengan entri sebelumnya untuk orang yang sama
+      // Untuk menghitung perubahan dengan benar, kelompokkan menurut kronologis waktu tiap nama
+      const memberSortedHistory = {};
+      allRecords.forEach(r => {
+        const k = r.nama.toLowerCase();
+        if (!memberSortedHistory[k]) memberSortedHistory[k] = [];
+        memberSortedHistory[k].push(r);
+      });
+
+      // Urutkan riwayat per anggota dari terlama ke terbaru
+      Object.keys(memberSortedHistory).forEach(k => {
+        memberSortedHistory[k].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+      });
+
+      // Helper untuk mencari selisih berat
+      function getWeightDiff(record) {
+        const list = memberSortedHistory[record.nama.toLowerCase()] || [];
+        const idx = list.findIndex(item => item.id === record.id || (item.tanggal === record.tanggal && item.berat === record.berat));
+        if (idx <= 0) return null; // Catatan pertama, belum ada selisih
+        const prev = list[idx - 1];
+        const diff = record.berat - prev.berat;
+        return Number(diff.toFixed(2));
+      }
+
+      let html = "";
+      displayRecords.forEach((record, index) => {
+        const diff = getWeightDiff(record);
+        let diffBadge = `<span class="text-slate-400 text-xs font-medium">-</span>`;
+
+        if (diff !== null) {
+          if (diff < 0) {
+            // Berat turun (biasanya positif dalam diet, warna hijau)
+            diffBadge = `
+              <span class="inline-flex items-center space-x-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                <i class="fa-solid fa-arrow-down text-[10px]"></i>
+                <span>${Math.abs(diff)} kg</span>
+              </span>
+            `;
+          } else if (diff > 0) {
+            // Berat naik (warna oranye/merah)
+            diffBadge = `
+              <span class="inline-flex items-center space-x-1 text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                <i class="fa-solid fa-arrow-up text-[10px]"></i>
+                <span>+${diff} kg</span>
+              </span>
+            `;
+          } else {
+            diffBadge = `
+              <span class="inline-flex items-center text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-md">
+                Tetap
+              </span>
+            `;
+          }
+        }
+
+        // Avatar inisial dengan warna konsisten
+        const initial = record.nama ? record.nama.charAt(0).toUpperCase() : "?";
+        const colorIndex = Math.abs(hashString(record.nama)) % MEMBER_COLORS.length;
+        const color = MEMBER_COLORS[colorIndex];
+
+        html += `
+          <tr class="hover:bg-slate-50/80 transition-colors">
+            <td class="py-3 px-4 sm:px-6 text-slate-400 font-mono text-xs">${index + 1}</td>
+            <td class="py-3 px-4 sm:px-6 whitespace-nowrap">
+              <span class="font-semibold text-slate-800">${formatDateIndo(record.tanggal)}</span>
+              <span class="block text-[11px] text-slate-400 font-mono">${record.tanggal}</span>
+            </td>
+            <td class="py-3 px-4 sm:px-6">
+              <div class="flex items-center space-x-2.5">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-xs" style="background-color: ${color.border}">
+                  ${initial}
+                </div>
+                <span class="font-bold text-slate-900">${record.nama}</span>
+              </div>
+            </td>
+            <td class="py-3 px-4 sm:px-6 text-right whitespace-nowrap">
+              <span class="font-extrabold text-slate-900 font-mono text-sm sm:text-base">${record.berat.toFixed(1)}</span>
+              <span class="text-xs font-bold text-slate-400 ml-1">kg</span>
+            </td>
+            <td class="py-3 px-4 sm:px-6 text-center whitespace-nowrap">
+              ${diffBadge}
+            </td>
+            <td class="py-3 px-4 sm:px-6 text-center whitespace-nowrap">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-brand-700 border border-brand-200">
+                <i class="fa-solid fa-cloud-check mr-1 text-[10px]"></i> Tersimpan
+              </span>
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    /**
+     * Toggle Kolom Pengurutan Tabel
+     */
+    function toggleSort(col) {
+      if (currentSortColumn === col) {
+        currentSortAsc = !currentSortAsc;
+      } else {
+        currentSortColumn = col;
+        currentSortAsc = false;
+      }
+
+      // Update ikon sort
+      const icons = {
+        tanggal: document.getElementById("sortDateIcon"),
+        nama: document.getElementById("sortNameIcon"),
+        berat: document.getElementById("sortWeightIcon")
+      };
+
+      Object.keys(icons).forEach(k => {
+        if (k === col) {
+          icons[k].className = currentSortAsc ? "fa-solid fa-sort-up ml-1 text-brand-600" : "fa-solid fa-sort-down ml-1 text-brand-600";
+        } else {
+          icons[k].className = "fa-solid fa-sort ml-1 text-slate-400";
+        }
+      });
+
+      renderHistoryTable();
+    }
+
+    /**
+     * Tombol Preset Rentang Tanggal Grafik
+     */
+    function setFilterPreset(preset) {
+      // Update UI active buttons
+      document.querySelectorAll(".preset-btn").forEach(btn => {
+        btn.classList.remove("active", "bg-brand-50", "border-brand-500", "text-brand-600");
+        btn.classList.add("border-slate-200", "text-slate-600");
+      });
+
+      if (event && event.target) {
+        event.target.classList.add("active", "bg-brand-50", "border-brand-500", "text-brand-600");
+      }
+
+      const today = new Date();
+      const todayStr = getTodayDateStr();
+      let startStr = "";
+
+      if (preset === '7D') {
+        startStr = getRelativeDateStr(-7);
+      } else if (preset === '30D') {
+        startStr = getRelativeDateStr(-30);
+      } else if (preset === 'THIS_MONTH') {
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        startStr = formatDateISO(firstDay);
+      } else if (preset === 'ALL_TIME') {
+        startStr = ""; // Tidak ada batas bawah
+      }
+
+      document.getElementById("filterStartDate").value = startStr;
+      document.getElementById("filterEndDate").value = todayStr;
+
+      applyChartFilters();
+    }
+
+    /**
+     * Ekspor Data Tabel ke File CSV
+     */
+    function exportToCSV() {
+      if (allRecords.length === 0) {
+        showToast("Tidak ada data untuk diekspor!", "warning");
+        return;
+      }
+
+      let csv = "ID,Tanggal,Nama,Berat Badan (kg),Waktu Input\n";
+      allRecords.forEach(r => {
+        const cleanName = `"${(r.nama || '').replace(/"/g, '""')}"`;
+        csv += `${r.id || ''},${r.tanggal || ''},${cleanName},${r.berat || ''},${r.waktuInput || ''}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `weight_tracker_export_${getTodayDateStr()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast("File CSV berhasil didownload!", "success");
+    }
+
+    /**
+     * Memuat Data Demo atau Cache Lokal
+     */
+    function loadLocalOrDemoData() {
+      const cached = localStorage.getItem(STORAGE_KEY_LOCAL_DATA);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allRecords = parsed;
+            processAndRenderAll();
+            return;
+          }
+        } catch (e) {
+          console.warn("Cache lokal rusak, menggunakan data demo.");
+        }
+      }
+
+      // Default jika belum ada data sama sekali
+      allRecords = [...DEMO_RECORDS];
+      processAndRenderAll();
+    }
+
+    /**
+     * Modal Konfigurasi URL Google Apps Script
+     */
+    function openConfigModal() {
+      document.getElementById("modalScriptUrl").value = getActiveScriptUrl();
+      document.getElementById("configModal").classList.remove("hidden");
+    }
+
+    function closeConfigModal() {
+      document.getElementById("configModal").classList.add("hidden");
+    }
+
+    function saveConfigUrl() {
+      const urlVal = document.getElementById("modalScriptUrl").value.trim();
+      GOOGLE_SCRIPT_URL = urlVal;
+      localStorage.setItem(STORAGE_KEY_URL, urlVal);
+      closeConfigModal();
+
+      if (urlVal) {
+        showToast("URL Google Apps Script disimpan! Melakukan sinkronisasi...", "info");
+        syncData(true);
+      } else {
+        showToast("URL dikosongkan. Kembali ke mode demo lokal.", "warning");
+        showDemoModeNotice(true);
+        loadLocalOrDemoData();
+      }
+    }
+
+    function dismissAlertBanner() {
+      document.getElementById("statusAlertBanner").classList.add("hidden");
+    }
+
+    function showDemoModeNotice(show) {
+      const banner = document.getElementById("statusAlertBanner");
+      if (show) {
+        banner.classList.remove("hidden");
+        setConnectionStatus("demo", "Mode Demo");
+      } else {
+        banner.classList.add("hidden");
+      }
+    }
+
+    /**
+     * Mengatur status indikator koneksi
+     */
+    function setConnectionStatus(type, label) {
+      const badge = document.getElementById("connectionBadge");
+      const text = document.getElementById("connectionBadgeText");
+
+      if (type === "online") {
+        badge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>${label}</span>`;
+      } else if (type === "loading") {
+        badge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-50 text-brand-700 border border-blue-200";
+        badge.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-brand-600 text-[10px]"></i><span>${label}</span>`;
+      } else if (type === "demo") {
+        badge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>${label}</span>`;
+      } else {
+        badge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>${label}</span>`;
+      }
+    }
+
+    function updateRefreshButtonState(isLoading) {
+      const btn = document.getElementById("btnTopRefresh");
+      const icon = document.getElementById("btnTopRefreshIcon");
+      if (isLoading) {
+        btn.disabled = true;
+        icon.classList.add("fa-spin");
+      } else {
+        btn.disabled = false;
+        icon.classList.remove("fa-spin");
+      }
+    }
+
+    function setSubmitButtonLoading(isLoading) {
+      const btn = document.getElementById("btnSubmit");
+      const icon = document.getElementById("btnSubmitIcon");
+      const text = document.getElementById("btnSubmitText");
+
+      if (isLoading) {
+        btn.disabled = true;
+        icon.className = "fa-solid fa-circle-notch fa-spin";
+        text.textContent = "Menyimpan ke Sheets...";
+      } else {
+        btn.disabled = false;
+        icon.className = "fa-solid fa-floppy-disk";
+        text.textContent = "Simpan Data";
+      }
+    }
+
+    /**
+     * Menampilkan Pesan Toast Notifikasi yang Cantik
+     */
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      
+      const config = {
+        success: { bg: "bg-emerald-600", icon: "fa-circle-check" },
+        error:   { bg: "bg-rose-600",    icon: "fa-circle-exclamation" },
+        warning: { bg: "bg-amber-600",   icon: "fa-triangle-exclamation" },
+        info:    { bg: "bg-brand-600",   icon: "fa-circle-info" }
+      }[type] || { bg: "bg-slate-800", icon: "fa-bell" };
+
+      toast.className = `${config.bg} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center space-x-3 text-xs sm:text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto`;
+      toast.innerHTML = `
+        <i class="fa-solid ${config.icon} text-base shrink-0"></i>
+        <span class="flex-grow leading-snug">${message}</span>
+        <button onclick="this.parentElement.remove()" class="text-white/80 hover:text-white shrink-0 p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+
+      // Animate in
+      requestAnimationFrame(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+      });
+
+      // Auto dismiss after 4 seconds
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    /**
+     * Helpers & Utilities
+     */
+    function getActiveScriptUrl() {
+      return (GOOGLE_SCRIPT_URL || localStorage.getItem(STORAGE_KEY_URL) || "").trim();
+    }
+
+    function getUniqueMemberNames() {
+      const set = new Set();
+      allRecords.forEach(r => {
+        if (r.nama && r.nama.trim()) {
+          set.add(r.nama.trim());
+        }
+      });
+      return Array.from(set).sort();
+    }
+
+    function getTodayDateStr() {
+      const d = new Date();
+      return formatDateISO(d);
+    }
+
+    function getRelativeDateStr(daysOffset) {
+      const d = new Date();
+      d.setDate(d.getDate() + daysOffset);
+      return formatDateISO(d);
+    }
+
+    function formatDateISO(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function formatDateIndo(dateStr) {
+      if (!dateStr) return "-";
+      const parts = dateStr.split("-");
+      if (parts.length !== 3) return dateStr;
+      
+      const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+      const day = parseInt(parts[2], 10);
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const year = parts[0];
+
+      return `${day} ${months[monthIdx] || ''} ${year}`;
+    }
+
+    function formatDateShort(dateStr) {
+      if (!dateStr) return "";
+      const parts = dateStr.split("-");
+      if (parts.length !== 3) return dateStr;
+      const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+      return `${parseInt(parts[2], 10)} ${months[parseInt(parts[1], 10) - 1] || ''}`;
+    }
+
+    function hashString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return hash;
+    }
+  </script>
+</body>
+</html>
